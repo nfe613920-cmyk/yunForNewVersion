@@ -1,35 +1,49 @@
-import sys
-sys.path.append("..")
-from main import encrypt_sm4, decrypt_sm4, b64decode
 import requests
 import json
 import time
 import hashlib
 import configparser
-
+from base64 import b64encode, b64decode
+from gmssl.sm4 import CryptSM4, SM4_ENCRYPT, SM4_DECRYPT
 
 config = configparser.ConfigParser()
 config.read('config.ini', encoding='utf-8')
-default_key =  config.get("Yun", "cipherkey")
-CipherKeyEncrypted = config.get("Yun", "cipherkeyencrypted")
-
 
 def md5_encryption(data):
     md5 = hashlib.md5()  # 创建一个md5对象
     md5.update(data.encode('utf-8'))  # 使用utf-8编码数据
     return md5.hexdigest()  # 返回加密后的十六进制字符串
 
+def encrypt_sm4(value, SM_KEY, isBytes = False):
+    crypt_sm4 = CryptSM4()
+    crypt_sm4.set_key(SM_KEY, SM4_ENCRYPT)
+    if not isBytes:
+        encrypt_value = b64encode(crypt_sm4.crypt_ecb(value.encode("utf-8")))
+    else:
+        encrypt_value = b64encode(crypt_sm4.crypt_ecb(value))
+    return encrypt_value.decode()
+
+def decrypt_sm4(value, SM_KEY):
+    crypt_sm4 = CryptSM4()
+    crypt_sm4.set_key(SM_KEY, SM4_DECRYPT)
+    decrypt_value = crypt_sm4.crypt_ecb(b64decode(value))
+    return decrypt_value
+
 def getschool_Url_Id(schoolName): 
     utc = str(int(time.time()))
     uuid = "2211725972932675"
-    sign_data = f'platform=android&utc={utc}&uuid={uuid}&appsecret=pie0hDSfMRINRXc7s1UIXfkE'
+    default_key =  config.get("Yun", "cipherkey")
+    CipherKeyEncrypted = config.get("Yun", "cipherkeyencrypted")
+    version = config.get("Yun", "app_edition")
+    md5key = config.get("Yun", "md5key")
+    sign_data = f'platform=android&utc={utc}&uuid={uuid}&appsecret={md5key}'
     sign = md5_encryption(sign_data)
     url = "http://sports.aiyyd.com:9001/api/app/schoolList"
     headers = {
         "isApp": "app",
         "deviceId": uuid,
         "deviceName": "Xiaomi",
-        "version": "3.4.7",
+        "version": version,
         "platform": "android",
         "uuid": uuid,
         "utc": utc,
