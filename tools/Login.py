@@ -1,72 +1,16 @@
 import random
 import time
-from gmssl import sm4
-import hashlib
-import base64
+from base64 import b64decode
 import requests
-from Crypto.Util.Padding import pad, unpad
 import json
 import configparser
+from getUrl_Id import getschool_Url_Id, encrypt_sm4 ,decrypt_sm4, md5_encryption
 
 SM4_BLOCK_SIZE = 16
 conf = configparser.ConfigParser()
 
 class Login():
-    def md5_encryption(data):
-        md5 = hashlib.md5()  # 创建一个md5对象
-        md5.update(data.encode('utf-8'))  # 使用utf-8编码数据
-        return md5.hexdigest()  # 返回加密后的十六进制字符串
-    def hex_to_bytes(hex_str):
-        return bytes.fromhex(hex_str)
-    def pkcs7_padding(data):
-        return pad(data, SM4_BLOCK_SIZE)
-    def pkcs7_unpadding(data):
-        return unpad(data, SM4_BLOCK_SIZE)
-    def sm4_encrypt(plaintext, key, iv=None, mode='ECB', padding='Pkcs7', output_format='Base64'):
-        crypt_sm4 = sm4.CryptSM4()
-        key = Login.hex_to_bytes(key)
-        # 设置加密模式
-        if mode == 'ECB':
-            crypt_sm4.set_key(key, sm4.SM4_ENCRYPT)
-        elif mode == 'CBC':
-            iv = Login.hex_to_bytes(iv) if iv else None
-            crypt_sm4.set_key(key, sm4.SM4_ENCRYPT, iv)
-        # 数据填充
-        if padding == 'Pkcs7':
-            plaintext = Login.pkcs7_padding(plaintext.encode())
-        # 加密操作
-        if mode == 'ECB':
-            ciphertext = crypt_sm4.crypt_ecb(plaintext)
-        elif mode == 'CBC':
-            ciphertext = crypt_sm4.crypt_cbc(plaintext)
-        # 输出格式转换
-        if output_format == 'Base64':
-            return base64.b64encode(ciphertext).decode()
-        elif output_format == 'Hex':
-            return ciphertext.hex()
-    def sm4_decrypt(ciphertext, key, iv=None, mode='ECB', padding='Pkcs7', input_format='Base64'):
-        crypt_sm4 = sm4.CryptSM4()
-        key = Login.hex_to_bytes(key)
-        # 设置解密模式
-        if mode == 'ECB':
-            crypt_sm4.set_key(key, sm4.SM4_DECRYPT)
-        elif mode == 'CBC':
-            iv = Login.hex_to_bytes(iv) if iv else None
-            crypt_sm4.set_key(key, sm4.SM4_DECRYPT, iv)
-        # 输入格式转换
-        if input_format == 'Base64':
-            ciphertext = base64.b64decode(ciphertext)
-        elif input_format == 'Hex':
-            ciphertext = bytes.fromhex(ciphertext)
-        # 解密操作
-        if mode == 'ECB':
-            plaintext = crypt_sm4.crypt_ecb(ciphertext)
-        elif mode == 'CBC':
-            plaintext = crypt_sm4.crypt_cbc(ciphertext)
-        # 数据去填充
-        #if padding == 'Pkcs7':
-            #plaintext = pkcs7_unpadding(plaintext)
-        return plaintext.decode()
+
     def main():
         
         utc = int(time.time())
@@ -96,10 +40,23 @@ class Login():
         iniuuid = conf.get('User', 'uuid')
         iniSysedition = conf.get('User', 'sys_edition')
         appedition = conf.get('Yun', 'app_edition')
-        url = conf.get('Yun', 'school_host') + '/login/appLoginHGD'
         platform = conf.get('Yun', 'platform')
+        schoolName = conf.get('Yun','school_name') or input("未找到学校名称，请输入学校名称：")
+        conf.set('Yun','school_Name',schoolName)
+        url, scId = getschool_Url_Id(schoolName)
+        if url and scId:
+            conf.set('Yun', 'school_host', url)
+            conf.set('Yun', 'school_id', str(scId))
+            with open('./config.ini', 'w', encoding='utf-8') as f:
+                conf.write(f)
         schoolid = conf.get('Yun', 'school_id')
-
+        schoolHost = conf.get('Yun', 'school_host')
+        
+        if schoolHost == 'http://210.45.246.53:8080':
+            url = schoolHost + '/login/appLoginHGD'
+        else:
+            url = schoolHost + '/login/appLogin'
+        
         if username != conf.get('Login', 'username'):
             conf.set('Login', 'username', username)
             with open('./config.ini', 'w', encoding='utf-8') as f:
@@ -113,7 +70,9 @@ class Login():
             DeviceId = iniDeviceId
         else:
             DeviceId = str(random.randint(1000000000000000, 9999999999999999))
-
+            conf.set('User', 'device_id', DeviceId)
+            with open('./config.ini', 'w', encoding='utf-8') as f:
+                conf.write(f)
         if iniuuid != '':
             uuid = iniuuid
         else:
@@ -135,11 +94,13 @@ class Login():
         #md5签名结果用hex
         encryptData = '''{"password":"'''+password+'''","schoolId":"'''+schoolid+'''","userName":"'''+username+'''","type":"1"}'''
         #签名结果
-        sign_data='platform=android&utc={}&uuid={}&appsecret=pie0hDSfMRINRXc7s1UIXfkE'.format(utc,uuid)
-        sign=Login.md5_encryption(sign_data)
-        key='e2c9e15e84f93b81ee01bbd299a31563'
-        content=Login.sm4_encrypt(encryptData, key, mode='ECB', padding='Pkcs7', output_format='Base64')
-        content=content[:-24]
+        md5key = conf.get('Yun', 'md5key')
+        sign_data='platform=android&utc={}&uuid={}&appsecret={}'.format(utc,uuid,md5key)
+        sign=md5_encryption(sign_data)
+        default_key = conf.get('Yun', 'cipherkey')
+        CipherKeyEncrypted = conf.get('Yun', 'cipherKeyEncrypted')
+        content = encrypt_sm4(encryptData, b64decode(default_key),isBytes=False)
+        # content=content[:-24]
         headers = {
             "token": "",
             "isApp": "app",
@@ -156,7 +117,7 @@ class Login():
         }
         # 请求体内容
         data = {
-            "cipherKey": "BL+FHB2+eDL3gMtv1+2UljBFraZYQFOXkmyKrqyRAzcw1R4rsq1i8p1tEOXhZMHTlFWmR+i/mdf4DNi0hCUSoQ88JMTUSUIkgU0+mowqRlVc/n/qYGqXERFqyMqn+GANUvWU65+F6/RLhpAB3AiYSJOY/RplvXmRvQ==",
+            "cipherKey": CipherKeyEncrypted,
             "content": content
         }
         # 发送POST请求
@@ -168,7 +129,7 @@ class Login():
             print('返回数据报错 检查账号密码')
             exit()
         else:
-            DecryptedData=json.loads(Login.sm4_decrypt(result,key, mode='ECB', padding='Pkcs7',input_format='Base64'))
+            DecryptedData=json.loads(decrypt_sm4(result, b64decode(default_key)).decode())
         token=DecryptedData['data']['token']
         if response.status_code == 200:
             print("登录成功，本次登录尝试获得的token为：" + token + "  本次生成的uuid为：" + uuid)

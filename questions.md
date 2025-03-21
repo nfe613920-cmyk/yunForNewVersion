@@ -1,4 +1,4 @@
-#### 这里提供10个常见问题
+#### 这里提供11个常见问题
 
 1. 报错 'data' 然后NoneType xxx
 - 检查你的config有没有读到，有没有正确填写
@@ -36,3 +36,7 @@
 10. {"msg":"服务异常，请稍后再试","code":500}
 - 检查你密钥的配置，cipherKey和cipherkeyencrypted都要填
 - 检查你版本信息，别和最新版本差太多
+
+11. keyError: 'data'
+- 账户密码和学校不匹配，检查下school_host和school_id
+- `python getUrl_id.py` 来获得你学校的host和id
