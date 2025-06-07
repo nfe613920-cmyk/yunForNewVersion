@@ -12,7 +12,7 @@ conf = configparser.ConfigParser()
 class Login():
 
     def main():
-        
+
         utc = int(time.time())
 
         #读取ini
@@ -25,13 +25,13 @@ class Login():
             conf.set('Login', 'password', '')
             with open('./config.ini', 'w', encoding='utf-8') as f:
                 conf.write(f)
-        
+
         #判断school_id是否在[Yun]中
         if 'school_id' not in conf['Yun']:
             conf.set('Yun', 'school_id', '100')
             with open('./config.ini', 'w', encoding='utf-8') as f:
                 conf.write(f)
-        
+
         #读取ini配置
         username = conf.get('Login', 'username') or input('未找到用户名，请输入用户名：')
         password = conf.get('Login', 'password') or input('未找到密码，请输入密码：')
@@ -51,12 +51,15 @@ class Login():
                 conf.write(f)
         schoolid = conf.get('Yun', 'school_id')
         schoolHost = conf.get('Yun', 'school_host')
-        
-        if schoolHost == 'http://210.45.246.53:8080':
-            url = schoolHost + '/login/appLoginHGD'
-        else:
-            url = schoolHost + '/login/appLogin'
-        
+
+        # if schoolHost == 'http://210.45.246.53:8080':
+        #     url = schoolHost + '/login/appLoginHGD'
+        # else:
+        #     url = schoolHost + '/login/appLogin'
+        # 不同学校不同，例如 appLoginHGD appLoginCHZU appLogin
+        school_login_url = conf.get('Yun',"school_login_url")
+        url = schoolHost + '/login/' + school_login_url
+
         if username != conf.get('Login', 'username'):
             conf.set('Login', 'username', username)
             with open('./config.ini', 'w', encoding='utf-8') as f:
@@ -77,20 +80,20 @@ class Login():
             uuid = iniuuid
         else:
             uuid = DeviceId
-        
+
         if iniDeviceName != '':
             DeviceName = iniDeviceName
         else:
             print('DeviceName为空 请输入希望使用的设备名\n留空则使用默认名')
             DeviceName = input() or 'Xiaomi'
-        
+
         if iniSysedition != '':
             sys_edition = iniSysedition
         else:
             print('Sys_edition为空 请输入希望使用的设备名\n留空则使用14')
             sys_edition = input() or '14'
 
-        
+
         #md5签名结果用hex
         encryptData = '''{"password":"'''+password+'''","schoolId":"'''+schoolid+'''","userName":"'''+username+'''","type":"1"}'''
         #签名结果
@@ -124,14 +127,22 @@ class Login():
         response = requests.post(url, headers=headers, json=data)
         # 打印响应内容
         result=response.text
-        rawResponse=json.dumps(json.loads(result))
-        if rawResponse.find('500') != -1:
-            print('返回数据报错 检查账号密码')
+
+        if "{" in result : # 有的学校会直接返回未加密内容 如果是JSON（用最粗暴的方式判断）
+            DecryptedData = response.json()
+        else :
+            DecryptedData = json.loads(decrypt_sm4(result, b64decode(default_key)).decode())
+        # 判断是否返回错误信息并停止
+        if "500" in str(DecryptedData) :
+            print(DecryptedData["msg"])
             exit()
-        else:
-            DecryptedData=json.loads(decrypt_sm4(result, b64decode(default_key)).decode())
+
         token=DecryptedData['data']['token']
-        if response.status_code == 200:
+
+        if response.status_code == 200: # 成功登录时 返回信息
             print("登录成功，本次登录尝试获得的token为：" + token + "  本次生成的uuid为：" + uuid)
             print("!请注意! 使用脚本登录后会导致手机客户端登录失效\n请尽量减少手机登录次数，避免被识别为多设备登录代跑")
-        return token,DeviceId,DeviceName,uuid,sys_edition
+            return token,DeviceId,DeviceName,uuid,sys_edition
+        # 如果不是200响应，先打印响应再退出 便于排查问题
+        print(result)
+        exit()
