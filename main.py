@@ -216,7 +216,13 @@ def noTokenLogin():
     print("config中token为空，是否尝试使用账号密码登录？(y/n)")
     LoginChoice = input()
     if LoginChoice == 'y':
-        token,DeviceId,DeviceName,uuid,sys_edition = Login.main()
+        login_result = Login.main()
+        if login_result is None :
+            print("意外返回None，请再试一次")
+            exit()
+
+        token, DeviceId, DeviceName, uuid, sys_edition = login_result
+        # token,DeviceId,DeviceName,uuid,sys_edition = Login.main()
         #TEST CONTENT
         print("是否保存本次登录产生的token和uuid？(y/n)")
         TokenWrite = input()
