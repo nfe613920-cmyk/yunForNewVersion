@@ -1,0 +1,14 @@
+name: env
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.8
+  - pip
+  - tqdm
+  - schedule
+  - mitmproxy
+  - pip:
+      - requests
+      - gmssl
+      - pycryptodome
