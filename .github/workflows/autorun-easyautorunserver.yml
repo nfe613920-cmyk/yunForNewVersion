@@ -1,0 +1,38 @@
+name: Auto Run EasyAutoRunServer
+
+on:
+  schedule:
+    # 每天北京时间8点（北京时间=UTC+8，UTC时间为0点）
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  autorun:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库代码
+        uses: actions/checkout@v4
+
+      - name: 设置Python环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: 安装Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: "latest"
+          auto-update-conda: true
+          python-version: '3.8'
+          activate-environment: env
+          environment-file: tools/EasyAutoRunServer/environment.yml
+          auto-activate-base: false
+
+      - name: 赋予run.sh可执行权限
+        run: chmod +x tools/EasyAutoRunServer/run.sh
+
+      - name: 运行run.sh
+        shell: bash -l {0}
+        run: |
+          cd tools/EasyAutoRunServer
+          ./run.sh
